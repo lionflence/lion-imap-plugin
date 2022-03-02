@@ -1,10 +1,9 @@
 import { registerPlugin } from '@capacitor/core';
 
-import type { LionflenceImapPlugin } from './definitions';
+import type { LionflenceImapPlugin, MessageHeaders, ImapConfig, Message, MessagePart, NewMessage } from './definitions';
 
 const LionflenceImap = registerPlugin<LionflenceImapPlugin>('LionflenceImap', {
-  web: () => import('./web').then(m => new m.LionflenceImapWeb()),
 });
 
 export * from './definitions';
-export { LionflenceImap };
+export { LionflenceImap, MessageHeaders, ImapConfig, Message, MessagePart, NewMessage };

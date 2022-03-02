@@ -1,6 +1,6 @@
 {
-  "name": "lion-imap-plugin",
-  "version": "0.0.1",
+  "name": "@lionflence/lion-imap-plugin",
+  "version": "0.0.2",
   "description": "IMAP functionality for cordova apps",
   "main": "dist/plugin.cjs.js",
   "module": "dist/esm/index.js",

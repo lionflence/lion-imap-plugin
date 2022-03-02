@@ -6,7 +6,7 @@ iOS support to come!
 ## Install
 
 ```bash
-npm install lionflence/lion-imap-plugin
+npm install @lionflence/lion-imap-plugin
 npx cap sync
 ```
 

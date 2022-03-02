@@ -16,7 +16,7 @@ You will probably receive an error during the android compilation process tellin
 
 You can fix this by excluding the files inside of the android packaging options like so:
 
-Add the following inside your `build.gradle` file:
+Add the following inside your `android/app/build.gradle` file (NOTE: NOT `android/build.gradle`!):
 
 ```
 android {

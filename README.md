@@ -10,6 +10,23 @@ npm install @lionflence/lion-imap-plugin
 npx cap sync
 ```
 
+You will probably receive an error during the android compilation process telling you the following:
+
+`2 files found with path 'META-INF/NOTICE.md' from inputs: ...`
+
+You can fix this by excluding the files inside of the android packaging options like so:
+
+Add the following inside your `build.gradle` file:
+
+```
+android {
+    ...
+    packagingOptions {
+        exclude 'META-INF/NOTICE.md'
+        exclude 'META-INF/LICENSE.md'
+    }
+}
+```
 ## API
 
 <docgen-index>

@@ -44,6 +44,7 @@ import javax.mail.BodyPart;
 import javax.mail.Header;
 import javax.mail.Flags;
 import javax.mail.Flags;
+import javax.mail.Transport;
 
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
@@ -56,6 +57,7 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 
 public class LionflenceImap {
     private static Store store;
+    private static Session session;
     private static HashMap<String, Long> paginationOffsets;
 
     public LionflenceImap() {
@@ -64,7 +66,7 @@ public class LionflenceImap {
                 Properties props = System.getProperties();
                 props.setProperty("mail.store.protocol", "imaps");
 
-                Session session = Session.getDefaultInstance(props, null);
+                session = Session.getDefaultInstance(props, null);
                 store = session.getStore("imaps");
             }
             if(paginationOffsets == null) {
@@ -101,6 +103,43 @@ public class LionflenceImap {
             object.put("disconnected", true);
         } catch(Exception e) {
             object.put("disconnected", false);
+        }
+
+        return object;
+    }
+
+    public JSObject sendMessage(PluginCall call) throws Exception {
+        JSObject object = new JSObject();
+        String from = call.getString("from");
+        String[] to = this.convertJSONArrayToStringArray(call.getArray("to"));
+        String[] cc = this.convertJSONArrayToStringArray(call.getArray("cc"));
+        String[] bcc = this.convertJSONArrayToStringArray(call.getArray("bcc"));
+        String content = call.getString("content");
+
+        MimeBodyPart mimeBodyPart = new MimeBodyPart();
+        mimeBodyPart.setContent(content, "text/html; charset=utf-8");
+
+        Message message = new MimeMessage(session);
+
+        Multipart multipart = new MimeMultipart();
+        multipart.addBodyPart(mimeBodyPart);
+        message.setContent(multipart);
+
+        message.setFrom(new InternetAddress(from));
+        for(int i = 0; i < to.length; i++) {
+            message.addRecipient(Message.RecipientType.TO, InternetAddress.parse(to[i])[0]);
+        }
+        for(int i = 0; i < cc.length; i++) {
+            message.addRecipient(Message.RecipientType.CC, InternetAddress.parse(cc[i])[0]);
+        }
+        for(int i = 0; i < bcc.length; i++) {
+            message.addRecipient(Message.RecipientType.BCC, InternetAddress.parse(bcc[i])[0]);
+        }
+        try {
+            Transport.send(message);
+            object.put("sent", true);
+        } catch(Exception e) {
+            object.put("sent", false);
         }
 
         return object;
@@ -159,26 +198,40 @@ public class LionflenceImap {
         String headerValue = call.getString("headerValue");
         Integer limit = call.getInt("limit", 1);
 
-        JSArray folders = this.listMailFolders(call);
         JSArray messages = new JSArray();
 
+        JSArray folders = this.listMailFolders(call);
+
+        Message[] msgs = this.getMessagesByHeader(headerName, headerValue, limit, folders);
+
+        for(Message m: msgs) {
+            messages.put(this.parseFullMessage(m, false));
+        }
+        return messages;
+    }
+
+    private Message[] getMessagesByHeader(String headerName, String headerValue, int limit, JSArray folders) throws Exception {
+        ArrayList messages = new ArrayList<Message>();
         for(int i = 0; i < folders.length(); i++) {
             Folder emailFolder = store.getFolder(folders.getString(i));
             emailFolder.open(Folder.READ_ONLY);
             final SearchTerm headerTerm = new HeaderTerm(headerName, headerValue);
 
             Message[] msgs = emailFolder.search(headerTerm);
-
             for(Message m: msgs) {
-                messages.put(this.parseFullMessage(m, false));
-                if(messages.length() >= limit) {
+                messages.add(m);
+                if(messages.size() >= limit) {
                     emailFolder.close(false);
-                    return messages;
+                    Message[] data = new Message[messages.size()];
+                    messages.toArray(data);
+                    return data;
                 }
             }
             emailFolder.close(false);
         }
-        return messages;
+        Message[] data = new Message[messages.size()];
+        messages.toArray(data);
+        return data;
     }
 
     public JSArray searchMessages(PluginCall call) throws Exception {
@@ -217,6 +270,43 @@ public class LionflenceImap {
         emailFolder.close(false);
         paginationOffsets.put(currentPageKey, oldest);
         return resultData;
+    }
+
+    public JSObject getThreadForMessage(PluginCall call) throws Exception {
+        String messageId = call.getString("messageId");
+        ArrayList<Message> messages = new ArrayList<Message>();
+        JSArray folders = this.listMailFolders(call);
+        this.recursivelyFetchMessages(messageId, messages, folders);
+
+        JSArray msgs = new JSArray();
+        for(Message m: messages) {
+            msgs.put(this.parseFullMessage(m, false));
+        }
+
+        JSObject object = new JSObject();
+        object.put("messages", msgs);
+        return object;
+    }
+
+    private Message[] recursivelyFetchMessages(String messageId, ArrayList<Message> messages, JSArray folders) throws Exception {
+        Message[] msgs = this.getMessagesByHeader("Message-ID", messageId, 1, folders);
+
+        if(msgs.length == 1) {
+            messages.add(msgs[0]);
+            String inReplyTo = this.getMessageHeaderValue(msgs[0], "In-Reply-To");
+            boolean alreadyInList = false;
+            for(Message m: messages) {
+                String msgId = this.getMessageHeaderValue(m, "Message-ID");
+                if(msgId != null && inReplyTo != null && inReplyTo.equals(msgId)) {
+                    alreadyInList = true;
+                    break;
+                }
+            }
+            if(!alreadyInList && inReplyTo != null) {
+                this.recursivelyFetchMessages(inReplyTo, messages, folders);
+            }
+        }
+        return msgs;
     }
 
     private Message[] internalSearch(Folder folder, String query, long minDateInMilliseconds , long maxDateInMilliseconds) throws Exception {
@@ -334,6 +424,10 @@ public class LionflenceImap {
         final SearchTerm newerThan = new ReceivedDateTerm(ComparisonTerm.valueOf("GT").getComparisonTerm(), new Date(minDateInMilliseconds));
         final SearchTerm andTerm = new AndTerm(olderThan, newerThan);
         return emailFolder.search(andTerm);
+    }
+
+    public JSObject getMessageAttachment(PluginCall call) throws Exception {
+        return null;
     }
 
     private JSObject parseFullMessage(Message message, boolean withAttachments) throws MessagingException, JSONException, IOException {
@@ -526,6 +620,20 @@ public class LionflenceImap {
         return new int[]{};
     }
 
+    private String[] convertJSONArrayToStringArray(JSArray array) throws Exception {
+        if (array != null) {
+            String[] strings = new String[array.length()];
+
+            for (int i = 0; i < array.length(); ++i) {
+                strings[i] = array.getString(i);
+            }
+
+            return strings;
+        }
+
+        return new String[]{};
+    }
+
     private String getTextPreview(Object message) throws Exception {
         Object body = null;
         if(message instanceof Message) {
@@ -628,12 +736,27 @@ public class LionflenceImap {
         Enumeration allHeaders = mes.getAllHeaders();
         while (allHeaders.hasMoreElements()) {
             Header header = (Header) allHeaders.nextElement();
-            if(header.getName().equals("Message-ID")) {
+            if(header.getName().toLowerCase().equals("message-id")) {
                 message.put("messageId", header.getValue());
             }
         }
 
         return message;
+    }
+
+    private String getMessageHeaderValue(Message message, String headerName) throws Exception {
+        if(!message.getFolder().isOpen()) {
+            message.getFolder().open(Folder.READ_ONLY);
+        }
+
+        Enumeration allHeaders = message.getAllHeaders();
+        while (allHeaders.hasMoreElements()) {
+            Header header = (Header) allHeaders.nextElement();
+            if(header.getName().equals(headerName)) {
+                return header.getValue();
+            }
+        }
+        return null;
     }
 
     private JSArray parseMessagesHeaders(Message[] messages) throws MessagingException, JSONException, Exception {

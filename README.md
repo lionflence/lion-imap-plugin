@@ -43,6 +43,9 @@ android {
 * [`setFlag(...)`](#setflag)
 * [`listMessagesHeadersByConsecutiveNumber(...)`](#listmessagesheadersbyconsecutivenumber)
 * [`searchMessages(...)`](#searchmessages)
+* [`sendMessage(...)`](#sendmessage)
+* [`getThreadForMessage(...)`](#getthreadformessage)
+* [`getMessageAttachment(...)`](#getmessageattachment)
 * [Interfaces](#interfaces)
 
 </docgen-index>
@@ -222,6 +225,51 @@ searchMessages(call: { query: string; page: number; limit: number; folderName: s
 --------------------
 
 
+### sendMessage(...)
+
+```typescript
+sendMessage(call: { content: string; subject: string; from: string; to: string[]; cc: string[]; bcc: string[]; attachments: any[]; }) => Promise<{ sent: boolean; }>
+```
+
+| Param      | Type                                                                                                                            |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| **`call`** | <code>{ content: string; subject: string; from: string; to: string[]; cc: string[]; bcc: string[]; attachments: any[]; }</code> |
+
+**Returns:** <code>Promise&lt;{ sent: boolean; }&gt;</code>
+
+--------------------
+
+
+### getThreadForMessage(...)
+
+```typescript
+getThreadForMessage(call: { messageId: string; }) => Promise<{ messages: Message[]; }>
+```
+
+| Param      | Type                                |
+| ---------- | ----------------------------------- |
+| **`call`** | <code>{ messageId: string; }</code> |
+
+**Returns:** <code>Promise&lt;{ messages: Message[]; }&gt;</code>
+
+--------------------
+
+
+### getMessageAttachment(...)
+
+```typescript
+getMessageAttachment(call: { messageId: string; fileName: string; }) => Promise<{ content: string; }>
+```
+
+| Param      | Type                                                  |
+| ---------- | ----------------------------------------------------- |
+| **`call`** | <code>{ messageId: string; fileName: string; }</code> |
+
+**Returns:** <code>Promise&lt;{ content: string; }&gt;</code>
+
+--------------------
+
+
 ### Interfaces
 
 
@@ -244,11 +292,20 @@ searchMessages(call: { query: string; page: number; limit: number; folderName: s
 | **`subject`**           | <code>string</code>                                       |
 | **`previewText`**       | <code>string</code>                                       |
 | **`folder`**            | <code>string</code>                                       |
-| **`from`**              | <code>string[]</code>                                     |
-| **`to`**                | <code>string[]</code>                                     |
+| **`from`**              | <code>MessageAddress[]</code>                             |
+| **`toRecipients`**      | <code>MessageAddress[]</code>                             |
 | **`received`**          | <code><a href="#date">Date</a></code>                     |
 | **`bodyContent`**       | <code>MessagePart[]</code>                                |
 | **`allMessageHeaders`** | <code><a href="#messageheaders">MessageHeaders</a></code> |
+
+
+#### MessageAddress
+
+| Prop           | Type                |
+| -------------- | ------------------- |
+| **`address`**  | <code>string</code> |
+| **`personal`** | <code>string</code> |
+| **`type`**     | <code>string</code> |
 
 
 #### Date

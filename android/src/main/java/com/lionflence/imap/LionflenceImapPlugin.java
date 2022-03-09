@@ -39,6 +39,33 @@ public class LionflenceImapPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void sendMessage(PluginCall call) {
+        try {
+            call.resolve(implementation.sendMessage(call));
+        } catch(Exception e) {
+            call.errorCallback(e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void getThreadForMessage(PluginCall call) {
+        try {
+            call.resolve(implementation.getThreadForMessage(call));
+        } catch(Exception e) {
+            call.errorCallback(e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void getMessageAttachment(PluginCall call) {
+        try {
+            call.resolve(implementation.getMessageAttachment(call));
+        } catch(Exception e) {
+            call.errorCallback(e.getMessage());
+        }
+    }
+
+    @PluginMethod
     public void listMailFolders(PluginCall call) {
         try {
             JSObject object = new JSObject();

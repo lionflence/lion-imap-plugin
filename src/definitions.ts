@@ -11,11 +11,12 @@ export interface Message {
   subject: string;
   previewText: string;
   folder: string;
-  from: string[];
-  to: string[];
+  from: MessageAddress[];
+  toRecipients: MessageAddress[];
   received: Date;
   bodyContent: MessagePart[];
   allMessageHeaders: MessageHeaders;
+  [x: string]: any;
 }
 
 export interface MessagePart {
@@ -27,6 +28,12 @@ export interface MessagePart {
 
 export interface MessageHeaders {
   [x: string]: string;
+}
+
+export interface MessageAddress {
+    address: string;
+    personal: string;
+    type: string;
 }
 
 export interface NewMessage {
@@ -64,4 +71,10 @@ export interface LionflenceImapPlugin {
   listMessagesHeadersByConsecutiveNumber(call: {folderName: string, start: number, end: number, query?: string}): Promise<{messages: Message[]}>;
 
   searchMessages(call: { query: string, page: number, limit: number, folderName: string }): Promise<{messages: Message[]}>;
+
+  sendMessage(call: { content: string, subject: string, from: string, to: string[], cc: string[], bcc: string[], attachments: any[] }): Promise<{sent: boolean}>;
+
+  getThreadForMessage(call: { messageId: string }): Promise<{messages: Message[] }>;
+
+  getMessageAttachment(call: { messageId: string, fileName: string }): Promise<{ content: string }>;
 }

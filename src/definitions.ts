@@ -13,10 +13,12 @@ export interface Message {
   folder: string;
   from: MessageAddress[];
   toRecipients: MessageAddress[];
-  received: Date;
+  receivedDate: Date;
+  sentDate: Date;
   bodyContent: MessagePart[];
   allMessageHeaders: MessageHeaders;
   [x: string]: any;
+  attachments: MessageAttachment[];
 }
 
 export interface MessagePart {
@@ -28,6 +30,12 @@ export interface MessagePart {
 
 export interface MessageHeaders {
   [x: string]: string;
+}
+
+export interface MessageAttachment {
+    content: string,
+    fileName: string,
+    type: string;
 }
 
 export interface MessageAddress {
@@ -76,5 +84,9 @@ export interface LionflenceImapPlugin {
 
   getThreadForMessage(call: { messageId: string }): Promise<{messages: Message[] }>;
 
-  getMessageAttachment(call: { messageId: string, fileName: string }): Promise<{ content: string }>;
+  getAttachmentContent(call: { messageId: string, folderName: string, offset: number }): Promise<{ content: string }>;
+
+  deleteMessage(call: { messageId: string }): Promise<{ deleted: boolean }>;
+
+  moveMessage(call: { messageId: string, folderName: string }): Promise<{ moved: boolean }>;
 }

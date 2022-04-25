@@ -57,4 +57,5 @@ dependencies {
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation "com.sun.mail:android-mail:1.6.6"
     implementation "com.sun.mail:android-activation:1.6.6"
+    implementation 'org.apache.james:apache-mime4j-core:0.8.6'
 }

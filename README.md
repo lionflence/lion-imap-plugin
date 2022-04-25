@@ -45,7 +45,9 @@ android {
 * [`searchMessages(...)`](#searchmessages)
 * [`sendMessage(...)`](#sendmessage)
 * [`getThreadForMessage(...)`](#getthreadformessage)
-* [`getMessageAttachment(...)`](#getmessageattachment)
+* [`getAttachmentContent(...)`](#getattachmentcontent)
+* [`deleteMessage(...)`](#deletemessage)
+* [`moveMessage(...)`](#movemessage)
 * [Interfaces](#interfaces)
 
 </docgen-index>
@@ -255,17 +257,47 @@ getThreadForMessage(call: { messageId: string; }) => Promise<{ messages: Message
 --------------------
 
 
-### getMessageAttachment(...)
+### getAttachmentContent(...)
 
 ```typescript
-getMessageAttachment(call: { messageId: string; fileName: string; }) => Promise<{ content: string; }>
+getAttachmentContent(call: { messageId: string; folderName: string; offset: number; }) => Promise<{ content: string; }>
 ```
 
-| Param      | Type                                                  |
-| ---------- | ----------------------------------------------------- |
-| **`call`** | <code>{ messageId: string; fileName: string; }</code> |
+| Param      | Type                                                                    |
+| ---------- | ----------------------------------------------------------------------- |
+| **`call`** | <code>{ messageId: string; folderName: string; offset: number; }</code> |
 
 **Returns:** <code>Promise&lt;{ content: string; }&gt;</code>
+
+--------------------
+
+
+### deleteMessage(...)
+
+```typescript
+deleteMessage(call: { messageId: string; }) => Promise<{ deleted: boolean; }>
+```
+
+| Param      | Type                                |
+| ---------- | ----------------------------------- |
+| **`call`** | <code>{ messageId: string; }</code> |
+
+**Returns:** <code>Promise&lt;{ deleted: boolean; }&gt;</code>
+
+--------------------
+
+
+### moveMessage(...)
+
+```typescript
+moveMessage(call: { messageId: string; folderName: string; }) => Promise<{ moved: boolean; }>
+```
+
+| Param      | Type                                                    |
+| ---------- | ------------------------------------------------------- |
+| **`call`** | <code>{ messageId: string; folderName: string; }</code> |
+
+**Returns:** <code>Promise&lt;{ moved: boolean; }&gt;</code>
 
 --------------------
 
@@ -294,9 +326,11 @@ getMessageAttachment(call: { messageId: string; fileName: string; }) => Promise<
 | **`folder`**            | <code>string</code>                                       |
 | **`from`**              | <code>MessageAddress[]</code>                             |
 | **`toRecipients`**      | <code>MessageAddress[]</code>                             |
-| **`received`**          | <code><a href="#date">Date</a></code>                     |
+| **`receivedDate`**      | <code><a href="#date">Date</a></code>                     |
+| **`sentDate`**          | <code><a href="#date">Date</a></code>                     |
 | **`bodyContent`**       | <code>MessagePart[]</code>                                |
 | **`allMessageHeaders`** | <code><a href="#messageheaders">MessageHeaders</a></code> |
+| **`attachments`**       | <code>MessageAttachment[]</code>                          |
 
 
 #### MessageAddress
@@ -370,5 +404,14 @@ Enables basic storage and retrieval of dates and times.
 
 
 #### MessageHeaders
+
+
+#### MessageAttachment
+
+| Prop           | Type                |
+| -------------- | ------------------- |
+| **`content`**  | <code>string</code> |
+| **`fileName`** | <code>string</code> |
+| **`type`**     | <code>string</code> |
 
 </docgen-api>

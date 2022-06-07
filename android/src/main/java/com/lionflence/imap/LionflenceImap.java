@@ -21,6 +21,9 @@ import java.lang.Integer;
 import java.util.Collections;
 import java.nio.charset.Charset;
 
+
+import org.json.JSONObject;
+
 import javax.mail.internet.MimeBodyPart;
 import javax.mail.internet.MimeMultipart;
 import javax.mail.Part;
@@ -32,6 +35,8 @@ import javax.mail.Message;
 import javax.mail.Session;
 import javax.mail.Store;
 import javax.mail.Folder;
+import javax.mail.Authenticator;
+import javax.mail.PasswordAuthentication;
 import com.sun.mail.imap.IMAPFolder;
 import javax.mail.Address;
 import javax.mail.MessagingException;
@@ -47,6 +52,7 @@ import javax.mail.Header;
 import javax.mail.Flags;
 import javax.mail.Flags;
 import javax.mail.Transport;
+import javax.mail.internet.PreencodedMimeBodyPart;
 
 import java.io.ByteArrayOutputStream;
 import java.io.ByteArrayInputStream;
@@ -64,19 +70,23 @@ import org.apache.james.mime4j.codec.DecoderUtil;
 
 public class LionflenceImap {
     private static Store store;
+    private static Transport smtp;
     private static Session session;
     private static HashMap<String, Long> paginationOffsets;
     private static KeyValueDbHelper keyValueStore;
 
+    private static String currentImapHost;
+    private static Integer currentImapPort;
+    private static String currentSmtpHost;
+    private static Integer currentSmtpPort;
+    private static String currentUsername;
+    private static String currentPassword;
+
+    private QuoteRemover quoteRemover;
+
     public LionflenceImap(Context context) {
         try {
-            if (store == null) {
-                Properties props = System.getProperties();
-                props.setProperty("mail.store.protocol", "imaps");
-
-                session = Session.getDefaultInstance(props, null);
-                store = session.getStore("imaps");
-            }
+            this.quoteRemover = new QuoteRemover();
             if(keyValueStore == null) {
                 keyValueStore = new KeyValueDbHelper(context);
             }
@@ -86,18 +96,76 @@ public class LionflenceImap {
         } catch(Exception ex) {
 
         }
+    }
 
+    public void connectIfNotConnected() throws Exception {
+        if(store.isConnected()) {
+            return;
+        } else {
+            Properties props = System.getProperties();
+            if(currentSmtpHost != null && currentSmtpPort != null) {
+                props.setProperty("mail.store.protocol", "imaps");
+                props.setProperty("mail.smtp.host", currentSmtpHost);
+                props.setProperty("mail.smtp.port", Integer.toString(currentSmtpPort));
+                props.setProperty("mail.smtp.auth", "true");
+                props.setProperty("mail.smtp.starttls.enable", "true");
+
+            }
+            Authenticator auth = new Authenticator() {
+                public PasswordAuthentication getPasswordAuthentication() {
+                    return new PasswordAuthentication(currentUsername, currentPassword);
+                }
+            };
+            session = Session.getInstance(props, auth);
+            smtp = session.getTransport("smtp");
+            store = session.getStore("imaps");
+            store.connect(currentImapHost, currentImapPort, currentUsername, currentPassword);
+        }
     }
 
     public JSObject connect(PluginCall call) throws Exception {
-        String host = call.getString("host");
-        Integer port = (int) call.getInt("port");
+        if(isConnected()) {
+            JSObject object = new JSObject();
+            object.put("connected", true);
+            return object;
+        }
+        String imapHost = call.getString("imapHost");
+        Integer imapPort = (int) call.getInt("imapPort");
+
+
         String user = call.getString("username");
         String password = call.getString("password");
         JSObject object = new JSObject();
 
         try {
-            store.connect(host, port, user, password);
+            Properties props = System.getProperties();
+            if(call.getString("smtpHost") != null && call.getInt("smtpPort") != null) {
+                String smtpHost = call.getString("smtpHost");
+                Integer smtpPort = (int) call.getInt("smtpPort");
+
+
+                props.setProperty("mail.store.protocol", "imaps");
+                props.setProperty("mail.smtp.host", smtpHost);
+                props.setProperty("mail.smtp.port", Integer.toString(smtpPort));
+                props.setProperty("mail.smtp.auth", "true");
+                props.setProperty("mail.smtp.starttls.enable", "true");
+                currentSmtpHost = smtpHost;
+                currentSmtpPort = smtpPort;
+
+            }
+            Authenticator auth = new Authenticator() {
+                public PasswordAuthentication getPasswordAuthentication() {
+                    return new PasswordAuthentication(user, password);
+                }
+            };
+            session = Session.getInstance(props, auth);
+            smtp = session.getTransport("smtp");
+            store = session.getStore("imaps");
+            store.connect(imapHost, imapPort, user, password);
+            currentUsername = user;
+            currentPassword = password;
+            currentImapHost = imapHost;
+            currentImapPort = imapPort;
         } catch(Exception e) {
             if(!e.getMessage().contains("already connected")) {
                 throw e;
@@ -122,10 +190,10 @@ public class LionflenceImap {
     public JSObject sendMessage(PluginCall call) throws Exception {
         JSObject object = new JSObject();
         String from = call.getString("from");
-        String[] to = this.convertJSONArrayToStringArray(call.getArray("to"));
-        String[] cc = this.convertJSONArrayToStringArray(call.getArray("cc"));
-        String[] bcc = this.convertJSONArrayToStringArray(call.getArray("bcc"));
-        JSArray[] attachments = call.getArray("attachments");
+        String[] to = this.convertJSONArrayToStringArray(call.getArray("to"), "address");
+        String[] cc = this.convertJSONArrayToStringArray(call.getArray("cc"), "address");
+        String[] bcc = this.convertJSONArrayToStringArray(call.getArray("bcc"), "address");
+        JSArray attachments = call.getArray("attachments");
         String content = call.getString("content");
 
         MimeBodyPart mimeBodyPart = new MimeBodyPart();
@@ -147,17 +215,32 @@ public class LionflenceImap {
         for(int i = 0; i < bcc.length; i++) {
             message.addRecipient(Message.RecipientType.BCC, InternetAddress.parse(bcc[i])[0]);
         }
-        for(int i = 0; i < attachments.length; i++) {
-            // todo: add attachment to message
+        for(int i = 0; i < attachments.length(); i++) {
+            /*String attachmentContent = attachments.get(i).getString("content");
+            String fileName = attachments.get(i).getString("fileName");
+            String attachmentType = attachments.get(i).getString("type");
+
+            MimeBodyPart filePart = new PreencodedMimeBodyPart("base64");
+            filePart.setContent(attachmentContent, attachmentType);
+            filePart.setFileName(fileName);
+            multipart.addBodyPart(filePart);*/
         }
         try {
-            Transport.send(message);
+            smtp.send(message);
             object.put("sent", true);
         } catch(Exception e) {
             object.put("sent", false);
         }
 
         return object;
+    }
+
+    public boolean isConnected() {
+        try {
+            return store.isConnected();
+        } catch(Exception e) {
+            return false;
+        }
     }
 
     public JSObject isConnected(PluginCall call) throws Exception {
@@ -242,6 +325,7 @@ public class LionflenceImap {
     }
 
     private Message[] getMessagesByHeader(String headerName, String headerValue, int limit, JSArray folders) throws Exception {
+        connectIfNotConnected();
         ArrayList messages = new ArrayList<Message>();
         if(headerName.equals("Message-ID") && keyValueStore.hasEntry(headerValue)) {
             Message msg = getMessageFromStore(headerValue);
@@ -344,6 +428,7 @@ public class LionflenceImap {
     }
 
     public JSObject getThreadForMessage(PluginCall call) throws Exception {
+        connectIfNotConnected();
         String messageId = call.getString("messageId");
         ArrayList<Message> messages = new ArrayList<Message>();
         JSArray folders = this.listMailFolders(call);
@@ -360,24 +445,34 @@ public class LionflenceImap {
     }
 
     private Message[] recursivelyFetchMessages(String messageId, ArrayList<Message> messages, JSArray folders) throws Exception {
-        Message[] msgs = getMessagesByHeader("Message-ID", messageId, 1, folders);
-
-        if(msgs.length == 1) {
-            messages.add(msgs[0]);
-            String inReplyTo = getMessageHeaderValue(msgs[0], "In-Reply-To");
-            boolean alreadyInList = false;
-            for(Message m: messages) {
-                String msgId = getMessageHeaderValue(m, "Message-ID");
-                if(msgId != null && inReplyTo != null && inReplyTo.equals(msgId)) {
-                    alreadyInList = true;
-                    break;
+        try {
+            Message[] msgs = getMessagesByHeader("Message-ID", messageId, 1, folders);
+            if(msgs.length == 1) {
+                messages.add(msgs[0]);
+                String inReplyTo = getMessageHeaderValue(msgs[0], "In-Reply-To");
+                boolean alreadyInList = false;
+                for(Message m: messages) {
+                    String msgId = getMessageHeaderValue(m, "Message-ID");
+                    if(msgId != null && inReplyTo != null && inReplyTo.equals(msgId)) {
+                        alreadyInList = true;
+                        break;
+                    }
+                }
+                if(!alreadyInList && inReplyTo != null) {
+                    recursivelyFetchMessages(inReplyTo, messages, folders);
                 }
             }
-            if(!alreadyInList && inReplyTo != null) {
-                recursivelyFetchMessages(inReplyTo, messages, folders);
-            }
+            Message[] msgArr = new Message[messages.size()];
+            messages.toArray(msgArr);
+            return msgArr;
+        } catch(Exception e) {
+            Message[] msgs = new Message[messages.size()];
+            messages.toArray(msgs);
+            return msgs;
         }
-        return msgs;
+
+
+
     }
 
     private Message[] internalSearch(Folder folder, String query, long minDateInMilliseconds , long maxDateInMilliseconds) throws Exception {
@@ -424,6 +519,7 @@ public class LionflenceImap {
     }
 
     public JSObject deleteMessage(PluginCall call) throws Exception {
+        connectIfNotConnected();
         JSArray folders = this.listMailFolders(call);
         String messageId = call.getString("messageId");
         Message[] msgs = this.getMessagesByHeader("Message-ID", messageId,1, folders);
@@ -444,6 +540,7 @@ public class LionflenceImap {
     }
 
     public JSObject moveMessage(PluginCall call) throws Exception {
+        connectIfNotConnected();
         JSArray folders = this.listMailFolders(call);
         String messageId = call.getString("messageId");
         String targetFolder = call.getString("folderName");
@@ -467,6 +564,7 @@ public class LionflenceImap {
     }
 
     public JSObject setFlag(PluginCall call) throws Exception {
+        connectIfNotConnected();
         String folderName = call.getString("folderName");
         int[] messageNums = this.convertJSONArrayToIntArray(call.getArray("messageNums"));
         Flag flag = Flag.valueOf(call.getString("flag"));
@@ -537,7 +635,28 @@ public class LionflenceImap {
         return emailFolder.search(andTerm);
     }
 
+    private void openFolderIfClosed(Folder emailFolder) {
+        try {
+            if(emailFolder != null && !emailFolder.isOpen()) {
+                emailFolder.open(Folder.READ_ONLY);
+            }
+        } catch(Exception e) {
+
+        }
+    }
+
+    private void closeFolderIfOpen(Folder emailFolder) {
+        try {
+            if(emailFolder != null && emailFolder.isOpen()) {
+                emailFolder.close();
+            }
+        } catch(Exception e) {
+
+        }
+    }
+
     private JSObject parseFullMessage(Message message, boolean withAttachments) throws MessagingException, JSONException, IOException, Exception {
+        openFolderIfClosed(message.getFolder());
         JSObject resultData = new JSObject();
         resultData.put("messageNumber", message.getMessageNumber());
         resultData.put("previewText", "");
@@ -574,6 +693,8 @@ public class LionflenceImap {
         if(withAttachments) {
             resultData.put("attachments", this.getMessageContentAttachments(message.getContent(), message.getContentType(), false));
         }
+
+        closeFolderIfOpen(message.getFolder());
 
         return resultData;
     }
@@ -719,7 +840,7 @@ public class LionflenceImap {
                 JSObject contentData = new JSObject();
 
                 contentData.put("type", contentType);
-                contentData.put("content", body);
+                contentData.put("content", this.quoteRemover.removeQuote((String) body));
 
                 fullContent.put(contentData);
             } else {
@@ -733,10 +854,10 @@ public class LionflenceImap {
                     BodyPart bodyPart = mimeMultipart.getBodyPart(i);
                     if (bodyPart.isMimeType("text/plain")) {
                         contentData.put("type", "text/plain");
-                        contentData.put("content", bodyPart.getContent());
+                        contentData.put("content", this.quoteRemover.removeQuote((String) bodyPart.getContent()));
                     } else if (bodyPart.isMimeType("text/html")) {
                         contentData.put("type", "text/html");
-                        contentData.put("content", bodyPart.getContent());
+                        contentData.put("content", this.quoteRemover.removeQuote((String) bodyPart.getContent()));
                     } else if (bodyPart.getContent() instanceof MimeMultipart) {
                         if (bodyPart.getContent() instanceof Multipart) {
 
@@ -848,6 +969,20 @@ public class LionflenceImap {
         return new int[]{};
     }
 
+    private String[] convertJSONArrayToStringArray(JSArray array, String property) throws Exception {
+        if (array != null) {
+            String[] strings = new String[array.length()];
+
+            for (int i = 0; i < array.length(); ++i) {
+                strings[i] = ((JSONObject) array.get(i)).getString(property);
+            }
+
+            return strings;
+        }
+
+        return new String[]{};
+    }
+
     private String[] convertJSONArrayToStringArray(JSArray array) throws Exception {
         if (array != null) {
             String[] strings = new String[array.length()];
@@ -937,6 +1072,8 @@ public class LionflenceImap {
             int end = html.indexOf("-->");
             if(end != -1) {
                 html = html.substring(0, start) + html.substring(end + "-->".length());
+            } else {
+                html = html.substring(0, start) + html.substring(start + "<!--".length());
             }
             start = html.indexOf("<!--");
         }

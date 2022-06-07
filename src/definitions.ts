@@ -1,7 +1,9 @@
 export interface ImapConfig {
   username: string;
-  host: string;
-  port: number;
+  imapHost: string;
+  smtpHost: string;
+  imapPort: number;
+  smtpPort: number;
   password: string;
 }
 
@@ -36,6 +38,7 @@ export interface MessageAttachment {
     content: string,
     fileName: string,
     type: string;
+    size?: number;
 }
 
 export interface MessageAddress {
@@ -48,11 +51,11 @@ export interface NewMessage {
     answerTo?: Message;
     content: string;
     subject: string;
-    to: string[];
+    to: MessageAddress[];
     from: string;
-    cc: string[];
-    bcc: string[];
-    attachments: any[];
+    cc: MessageAddress[];
+    bcc: MessageAddress[];
+    attachments: MessageAttachment[];
 }
 
 export interface LionflenceImapPlugin {
@@ -80,7 +83,7 @@ export interface LionflenceImapPlugin {
 
   searchMessages(call: { query: string, page: number, limit: number, folderName: string }): Promise<{messages: Message[]}>;
 
-  sendMessage(call: { content: string, subject: string, from: string, to: string[], cc: string[], bcc: string[], attachments: any[] }): Promise<{sent: boolean}>;
+  sendMessage(call: { content: string, subject: string, from: string, to: MessageAddress[], cc: MessageAddress[], bcc: MessageAddress[], attachments: any[] }): Promise<{sent: boolean}>;
 
   getThreadForMessage(call: { messageId: string }): Promise<{messages: Message[] }>;
 

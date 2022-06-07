@@ -10,6 +10,8 @@ npm install @lionflence/lion-imap-plugin
 npx cap sync
 ```
 
+
+### Android
 You will probably receive an error during the android compilation process telling you the following:
 
 `2 files found with path 'META-INF/NOTICE.md' from inputs: ...`
@@ -27,6 +29,14 @@ android {
     }
 }
 ```
+
+### iOS
+
+Nothing yet
+
+## Create and publish a new version
+
+
 ## API
 
 <docgen-index>
@@ -230,12 +240,12 @@ searchMessages(call: { query: string; page: number; limit: number; folderName: s
 ### sendMessage(...)
 
 ```typescript
-sendMessage(call: { content: string; subject: string; from: string; to: string[]; cc: string[]; bcc: string[]; attachments: any[]; }) => Promise<{ sent: boolean; }>
+sendMessage(call: { content: string; subject: string; from: string; to: MessageAddress[]; cc: MessageAddress[]; bcc: MessageAddress[]; attachments: any[]; }) => Promise<{ sent: boolean; }>
 ```
 
-| Param      | Type                                                                                                                            |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| **`call`** | <code>{ content: string; subject: string; from: string; to: string[]; cc: string[]; bcc: string[]; attachments: any[]; }</code> |
+| Param      | Type                                                                                                                                                    |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`call`** | <code>{ content: string; subject: string; from: string; to: MessageAddress[]; cc: MessageAddress[]; bcc: MessageAddress[]; attachments: any[]; }</code> |
 
 **Returns:** <code>Promise&lt;{ sent: boolean; }&gt;</code>
 
@@ -310,8 +320,10 @@ moveMessage(call: { messageId: string; folderName: string; }) => Promise<{ moved
 | Prop           | Type                |
 | -------------- | ------------------- |
 | **`username`** | <code>string</code> |
-| **`host`**     | <code>string</code> |
-| **`port`**     | <code>number</code> |
+| **`imapHost`** | <code>string</code> |
+| **`smtpHost`** | <code>string</code> |
+| **`imapPort`** | <code>number</code> |
+| **`smtpPort`** | <code>number</code> |
 | **`password`** | <code>string</code> |
 
 
@@ -413,5 +425,6 @@ Enables basic storage and retrieval of dates and times.
 | **`content`**  | <code>string</code> |
 | **`fileName`** | <code>string</code> |
 | **`type`**     | <code>string</code> |
+| **`size`**     | <code>number</code> |
 
 </docgen-api>
